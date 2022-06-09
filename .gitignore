@@ -1,0 +1,4 @@
+# Default ignored files
+.idea/workspace.xml
+__pycache__
+mlruns
