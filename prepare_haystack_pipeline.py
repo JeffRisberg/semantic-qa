@@ -35,10 +35,11 @@ from haystack import Pipeline, JoinDocuments
 
 
 content_dicts = load_data()
-print(len(content_dicts))
+print(len(content_dicts), "articles to index")
 
 bm_document_store = ElasticsearchDocumentStore(similarity="cosine",
-											   embedding_dim=384, index="bm_documents")
+											   embedding_dim=384,
+											   index="bm_documents")
 bm_document_store.delete_documents()
 bm_document_store.write_documents(content_dicts)
 
@@ -46,7 +47,7 @@ bm_retriever = BM25Retriever(document_store=bm_document_store)
 
 es_document_store = ElasticsearchDocumentStore(similarity="cosine",
 											   embedding_dim=384,
-											   index="document")
+											   index="es_documents")
 es_document_store.delete_documents()
 es_document_store.write_documents(content_dicts)
 
@@ -70,7 +71,6 @@ combined_p.add_node(component=e_retriever, name="ESRetriever",
 combined_p.add_node(component = JoinDocuments(join_mode="merge", weights = [0.5, 0.5]),
 					name="JoinResults_content",
 					inputs=["BMRetriever", "ESRetriever"])
-
 
 if __name__ == '__main__':
 
