@@ -1,10 +1,7 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-import tensorflow_hub as hub
-import numpy as np
 
-from elastic import connect_elastic, semantic_search, keyword_search
-
+from prepare_haystack_pipeline import combined_p, clean_text
 
 # Define the app
 app = Flask(__name__)
@@ -13,27 +10,30 @@ app.config.from_object('config')
 # Set CORS policies
 CORS(app)
 
-# Load the universal-sentence-encoder
-model = hub.load(app.config['MODEL_URL'])
-# Connect to es node
-connect_elastic(app.config['ELASTIC_IP'], app.config['ELASTIC_PORT'])
-
 
 @app.route("/query", methods=["GET"])
 def qa():
-    # API to return top_n matched records for a given query
-    if request.args.get("query"):
-        # Generate embeddings for the input query
-        query_vec = np.asarray(model([request.args.get("query")])[0]).tolist()
-        # Retrieve the semantically similar records for the query
-        records = semantic_search(query_vec, app.config['SEARCH_THRESH'])
+	records = {'documents': []}
 
-        # Retrieve records using keyword search (TF-IDF score)
-        # records = keyword_search(request.args.get("query"), app.config['SEARCH_THRESH'])
-    else:
-        return {"error": "Couldn't process your request"}, 422
-    return {"data": records}
+	if request.args.get("query"):
+		query = request.args.get("query")
+
+		records = combined_p.run(
+			query = clean_text(query),
+			params = {
+				"BMRetriever": {"top_k": 3},
+				"ESRetriever": {"top_k": 3}
+			})
+	else:
+		return {"error": "Couldn't process your request"}, 422
+
+	result = [{
+		'question': r.meta['question'],
+		'answers': r.meta['answers'],
+		'score': r.score}
+		for r in records['documents']]
+	return jsonify(result)
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5000)
+	app.run(debug=True, host="0.0.0.0", port=5000)
